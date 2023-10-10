@@ -145,7 +145,7 @@ fn default_l1_batch(number: L1BatchNumber) -> L1BatchEnv {
 
 fn default_system_env() -> SystemEnv {
     let base_system_smart_contracts = {
-        let playground_bytecode = read_precompile_bytecode(format!("{ROOT}/contracts/playground.yul.zbin"));
+        let playground_bytecode = read_precompile_bytecode(format!("{ROOT}/contracts/playground_batch.yul.zbin"));
         let hash = hash_bytecode(&playground_bytecode);
     
         let bootloader = SystemContractCode {
