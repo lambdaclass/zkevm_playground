@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 use zksync_era_contracts::{BaseSystemContracts, SystemContractCode, ContractLanguage};
-use zksync_era_state::{InMemoryStorage, StorageView};
+use zksync_era_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_era_test_account::{Account, TxType, DeployContractsTx};
-use zksync_era_types::{get_code_key, get_is_account_key, L1BatchNumber, helpers::unix_timestamp_ms, Address, block::{legacy_miniblock_hash, DeployedContract}, MiniblockNumber, ProtocolVersionId, L2ChainId, ethabi::{Token, Contract, self}, Execute, CONTRACT_DEPLOYER_ADDRESS, U256, utils::deployed_address_create, Nonce, ACCOUNT_CODE_STORAGE_ADDRESS, NONCE_HOLDER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, L2_ETH_TOKEN_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS, EVENT_WRITER_ADDRESS, BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, COMPLEX_UPGRADER_ADDRESS, BOOTLOADER_ADDRESS, AccountTreeId};
+use zksync_era_types::{get_code_key, get_is_account_key, L1BatchNumber, helpers::unix_timestamp_ms, Address, block::{legacy_miniblock_hash, DeployedContract}, MiniblockNumber, ProtocolVersionId, L2ChainId, ethabi::{Token, Contract, self}, Execute, CONTRACT_DEPLOYER_ADDRESS, U256, utils::{deployed_address_create, storage_key_for_eth_balance}, Nonce, ACCOUNT_CODE_STORAGE_ADDRESS, NONCE_HOLDER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, L2_ETH_TOKEN_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS, EVENT_WRITER_ADDRESS, BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, COMPLEX_UPGRADER_ADDRESS, BOOTLOADER_ADDRESS, AccountTreeId};
 use zksync_era_utils::{bytecode::hash_bytecode, u256_to_h256, bytes_to_be_words};
 use zksync_era_vm::{Vm, L1BatchEnv, L2BlockEnv, SystemEnv, constants::BLOCK_GAS_LIMIT, TxExecutionMode, HistoryEnabled, VmExecutionMode};
 
@@ -212,6 +212,16 @@ fn insert_contracts(raw_storage: &mut InMemoryStorage, contracts: &[ContractToDe
     }
 }
 
+fn random_rich_account(storage: Rc<RefCell<StorageView<InMemoryStorage>>>) -> Account {
+    let account = Account::random();
+    let key = storage_key_for_eth_balance(&account.address);
+    storage
+        .as_ref()
+        .borrow_mut()
+        .set_value(key, u256_to_h256(U256::from(10u64.pow(19))));
+    account
+}
+
 fn build_deploy_tx(mut account: Account, code: &[u8], calldata: Option<&[Token]>, mut factory_deps: Vec<Vec<u8>>, tx_type: TxType) -> DeployContractsTx {
     let deployer = serde_json::from_value::<Contract>(serde_json::from_reader::<_, Value>(File::open(format!("{ROOT}/contracts/ContractDeployer.json")).unwrap()).unwrap()["abi"].take()).unwrap();
 
@@ -250,18 +260,18 @@ fn build_deploy_tx(mut account: Account, code: &[u8], calldata: Option<&[Token]>
     }
 }
 
-fn default_vm() -> Vm<StorageView<InMemoryStorage>, HistoryEnabled> {
+fn default_vm(storage: Rc<RefCell<StorageView<InMemoryStorage>>>) -> Vm<StorageView<InMemoryStorage>, HistoryEnabled> {
     let batch_env = default_l1_batch(L1BatchNumber(1));
     let system_env = default_system_env();
-    let storage = default_empty_storage(&[]);
     Vm::new(batch_env, system_env, storage, HistoryEnabled)
 }
 
 fn main() {
+    let storage = default_empty_storage(&[]);
     let contract_bytecode = read_contract_bytecode(format!("{ROOT}/contracts/Counter.json"));
-    let sender = Account::random();
+    let sender = random_rich_account(storage.clone());
     let tx = build_deploy_tx(sender, &contract_bytecode, None, vec![], TxType::L2).tx;
-    let mut vm = default_vm();
+    let mut vm = default_vm(storage);
     vm.push_transaction(tx);
     let result = vm.execute(VmExecutionMode::OneTx);
     println!("{:?}", result);
