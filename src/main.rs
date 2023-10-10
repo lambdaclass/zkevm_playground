@@ -212,7 +212,7 @@ fn insert_contracts(raw_storage: &mut InMemoryStorage, contracts: &[ContractToDe
     }
 }
 
-fn deploy_contract(mut account: Account, code: &[u8], calldata: Option<&[Token]>, mut factory_deps: Vec<Vec<u8>>, tx_type: TxType) -> DeployContractsTx {
+fn build_deploy_tx(mut account: Account, code: &[u8], calldata: Option<&[Token]>, mut factory_deps: Vec<Vec<u8>>, tx_type: TxType) -> DeployContractsTx {
     let deployer = serde_json::from_value::<Contract>(serde_json::from_reader::<_, Value>(File::open(format!("{ROOT}/contracts/ContractDeployer.json")).unwrap()).unwrap()["abi"].take()).unwrap();
 
     let contract_function = deployer.function("create").unwrap();
@@ -260,7 +260,7 @@ fn default_vm() -> Vm<StorageView<InMemoryStorage>, HistoryEnabled> {
 fn main() {
     let contract_bytecode = read_contract_bytecode(format!("{ROOT}/contracts/Counter.json"));
     let sender = Account::random();
-    let tx = deploy_contract(sender, &contract_bytecode, None, vec![], TxType::L2).tx;
+    let tx = build_deploy_tx(sender, &contract_bytecode, None, vec![], TxType::L2).tx;
     let mut vm = default_vm();
     vm.push_transaction(tx);
     let result = vm.execute(VmExecutionMode::OneTx);
