@@ -1,0 +1,18 @@
+[package]
+name = "zkevm_playground"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+zksync_era_vm = { git = "https://github.com/matter-labs/zksync-era.git", package = "vm" }
+zksync_era_types = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_types" }
+zksync_era_contracts = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_contracts" }
+zksync_era_state = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_state" }
+zksync_era_utils = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_utils" }
+zksync_era_test_account = { git = "https://github.com/matter-labs/zksync-era.git", package = "zksync_test_account" }
+
+hex = "0.4.3"
+serde_json = "1.0.107"
+once_cell = "1.18.0"
