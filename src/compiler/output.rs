@@ -6,7 +6,7 @@ use ethers_solc::info::ContractInfoRef;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ZKSArtifact {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub abi: Option<Abi>,
