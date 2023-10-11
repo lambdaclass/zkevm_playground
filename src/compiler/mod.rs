@@ -1,4 +1,4 @@
-use self::project::ZKSProject;
+use self::{project::ZKSProject, output::ZKSArtifact};
 use std::{path::PathBuf, str::FromStr};
 use ethers_solc::{ProjectPathsConfig, Project, info::ContractInfo};
 
@@ -8,7 +8,7 @@ pub mod project;
 
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
-pub fn compile(contract_path: &str, contract_name: &str) -> Vec<u8> {
+pub fn compile(contract_path: &str, contract_name: &str) -> ZKSArtifact {
     let mut root = PathBuf::from(ROOT);
     root.push::<PathBuf>(contract_path.clone().into());
     let zk_project = ZKSProject::from(
@@ -19,9 +19,8 @@ pub fn compile(contract_path: &str, contract_name: &str) -> Vec<u8> {
             .unwrap(),
     );
     let compilation_output = zk_project.compile().unwrap();
-    let artifact = compilation_output
+    compilation_output
         .find_contract(ContractInfo::from_str(&format!(
             "{contract_path}:{contract_name}"
-        )).unwrap()).unwrap();
-    artifact.bin.clone().unwrap().to_vec()
+        )).unwrap()).unwrap().clone()
 }
