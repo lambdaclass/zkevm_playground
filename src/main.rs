@@ -1,4 +1,3 @@
-use once_cell::sync::Lazy;
 use zksync_era_contracts::{BaseSystemContracts, SystemContractCode, ContractLanguage};
 use zksync_era_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_era_test_account::{Account, TxType, DeployContractsTx};
@@ -7,7 +6,10 @@ use zksync_era_utils::{bytecode::hash_bytecode, u256_to_h256, bytes_to_be_words}
 use zksync_era_vm::{Vm, L1BatchEnv, L2BlockEnv, SystemEnv, constants::BLOCK_GAS_LIMIT, TxExecutionMode, HistoryEnabled, VmExecutionMode};
 
 use serde_json::Value;
+use once_cell::sync::Lazy;
 use std::{fs::File, str::FromStr, cell::RefCell, rc::Rc};
+
+mod compiler;
 
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
@@ -268,7 +270,7 @@ fn default_vm(storage: Rc<RefCell<StorageView<InMemoryStorage>>>) -> Vm<StorageV
 
 fn main() {
     let storage = default_empty_storage(&[]);
-    let contract_bytecode = read_contract_bytecode(format!("{ROOT}/contracts/Counter.json"));
+    let contract_bytecode = compiler::compile("test_contracts/counter/src/Counter.sol", "Counter");
     let sender = random_rich_account(storage.clone());
     let tx = build_deploy_tx(sender, &contract_bytecode, None, vec![], TxType::L2).tx;
     let mut vm = default_vm(storage);
