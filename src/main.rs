@@ -1,4 +1,3 @@
-use once_cell::sync::Lazy;
 use zksync_era_contracts::{BaseSystemContracts, SystemContractCode, ContractLanguage};
 use zksync_era_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_era_test_account::{Account, TxType, DeployContractsTx};
@@ -6,8 +5,15 @@ use zksync_era_types::{get_code_key, get_is_account_key, L1BatchNumber, helpers:
 use zksync_era_utils::{bytecode::hash_bytecode, u256_to_h256, bytes_to_be_words};
 use zksync_era_vm::{Vm, L1BatchEnv, L2BlockEnv, SystemEnv, constants::BLOCK_GAS_LIMIT, TxExecutionMode, HistoryEnabled, VmExecutionMode};
 
+use ethers_solc::{Project, ProjectPathsConfig, info::ContractInfo};
+
 use serde_json::Value;
-use std::{fs::File, str::FromStr, cell::RefCell, rc::Rc};
+use once_cell::sync::Lazy;
+use std::{fs::File, str::FromStr, cell::RefCell, rc::Rc, path::PathBuf};
+
+use crate::compile::project::ZKSProject;
+
+mod compile;
 
 const ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
@@ -266,9 +272,27 @@ fn default_vm(storage: Rc<RefCell<StorageView<InMemoryStorage>>>) -> Vm<StorageV
     Vm::new(batch_env, system_env, storage, HistoryEnabled)
 }
 
+fn compile(contract_path: &str, contract_name: &str) -> Vec<u8> {
+    let mut root = PathBuf::from(ROOT);
+    root.push::<PathBuf>(contract_path.clone().into());
+    let zk_project = ZKSProject::from(
+        Project::builder()
+            .paths(ProjectPathsConfig::builder().build_with_root(root))
+            .set_auto_detect(true)
+            .build()
+            .unwrap(),
+    );
+    let compilation_output = zk_project.compile().unwrap();
+    let artifact = compilation_output
+        .find_contract(ContractInfo::from_str(&format!(
+            "{contract_path}:{contract_name}"
+        )).unwrap()).unwrap();
+    artifact.bin.clone().unwrap().to_vec()
+}
+
 fn main() {
     let storage = default_empty_storage(&[]);
-    let contract_bytecode = read_contract_bytecode(format!("{ROOT}/contracts/Counter.json"));
+    let contract_bytecode = compile("test_contracts/counter/src/Counter.sol", "Counter");
     let sender = random_rich_account(storage.clone());
     let tx = build_deploy_tx(sender, &contract_bytecode, None, vec![], TxType::L2).tx;
     let mut vm = default_vm(storage);
