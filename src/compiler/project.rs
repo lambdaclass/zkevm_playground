@@ -16,7 +16,7 @@ impl From<Project> for ZKSProject {
 impl ZKSProject {
     pub fn compile(&self) -> Result<ZKSCompilationOutput, ZKCompilerError> {
         let zksolc_path = PathBuf::from("src/compiler/bin/zksolc");
-        let solc_path = PathBuf::from("src/compiler/bin/solc-macos");
+        let solc_path = PathBuf::from("src/compiler/bin/solc");
 
         let command = &mut std::process::Command::new(zksolc_path);
         command
