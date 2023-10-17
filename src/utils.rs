@@ -1,7 +1,7 @@
 use zksync_era_contracts::{BaseSystemContracts, SystemContractCode};
 use zksync_era_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_era_test_account::{Account, TxType, DeployContractsTx};
-use zksync_era_types::{get_code_key, get_is_account_key, L1BatchNumber, helpers::unix_timestamp_ms, Address, block::{legacy_miniblock_hash, DeployedContract}, MiniblockNumber, ProtocolVersionId, L2ChainId, ethabi::{Token, Contract, self}, Execute, CONTRACT_DEPLOYER_ADDRESS, U256, utils::{deployed_address_create, storage_key_for_eth_balance}, Nonce, Transaction};
+use zksync_era_types::{get_code_key, get_is_account_key, L1BatchNumber, helpers::unix_timestamp_ms, Address, block::legacy_miniblock_hash, MiniblockNumber, ProtocolVersionId, L2ChainId, ethabi::{Token, Contract, self}, Execute, CONTRACT_DEPLOYER_ADDRESS, U256, utils::{deployed_address_create, storage_key_for_eth_balance}, Nonce, Transaction};
 use zksync_era_utils::{bytecode::hash_bytecode, u256_to_h256, bytes_to_be_words};
 use zksync_era_vm::{Vm, L1BatchEnv, L2BlockEnv, SystemEnv, constants::BLOCK_GAS_LIMIT, TxExecutionMode, HistoryEnabled};
 
