@@ -67,6 +67,6 @@ fn main() {
     vm.push_transaction(call_tx);
 
     // Execute the batch
-    let batch_execution_result = vm.execute(VmExecutionMode::Batch).result;
+    let batch_execution_result = vm.execute(VmExecutionMode::Batch);
     log::info!("{batch_execution_result:?}");
 }
