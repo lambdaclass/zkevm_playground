@@ -1,7 +1,7 @@
 use zksync_era_contracts::{BaseSystemContracts, SystemContractCode, ContractLanguage};
 use zksync_era_state::{InMemoryStorage, StorageView, WriteStorage};
 use zksync_era_test_account::{Account, TxType, DeployContractsTx};
-use zksync_era_types::{get_code_key, get_is_account_key, L1BatchNumber, helpers::unix_timestamp_ms, Address, block::{legacy_miniblock_hash, DeployedContract}, MiniblockNumber, ProtocolVersionId, L2ChainId, ethabi::{Token, Contract, self}, Execute, CONTRACT_DEPLOYER_ADDRESS, U256, utils::{deployed_address_create, storage_key_for_eth_balance}, Nonce, ACCOUNT_CODE_STORAGE_ADDRESS, NONCE_HOLDER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, L2_ETH_TOKEN_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS, EVENT_WRITER_ADDRESS, BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, COMPLEX_UPGRADER_ADDRESS, BOOTLOADER_ADDRESS, AccountTreeId};
+use zksync_era_types::{get_code_key, get_is_account_key, L1BatchNumber, helpers::unix_timestamp_ms, Address, block::{legacy_miniblock_hash, DeployedContract}, MiniblockNumber, ProtocolVersionId, L2ChainId, ethabi::{Token, Contract, self}, Execute, CONTRACT_DEPLOYER_ADDRESS, U256, utils::{deployed_address_create, storage_key_for_eth_balance}, Nonce, ACCOUNT_CODE_STORAGE_ADDRESS, NONCE_HOLDER_ADDRESS, KNOWN_CODES_STORAGE_ADDRESS, IMMUTABLE_SIMULATOR_STORAGE_ADDRESS, L1_MESSENGER_ADDRESS, MSG_VALUE_SIMULATOR_ADDRESS, L2_ETH_TOKEN_ADDRESS, KECCAK256_PRECOMPILE_ADDRESS, SHA256_PRECOMPILE_ADDRESS, ECRECOVER_PRECOMPILE_ADDRESS, SYSTEM_CONTEXT_ADDRESS, EVENT_WRITER_ADDRESS, BOOTLOADER_UTILITIES_ADDRESS, BYTECODE_COMPRESSOR_ADDRESS, COMPLEX_UPGRADER_ADDRESS, BOOTLOADER_ADDRESS, AccountTreeId, Transaction};
 use zksync_era_utils::{bytecode::hash_bytecode, u256_to_h256, bytes_to_be_words};
 use zksync_era_vm::{Vm, L1BatchEnv, L2BlockEnv, SystemEnv, constants::BLOCK_GAS_LIMIT, TxExecutionMode, HistoryEnabled, VmExecutionMode};
 
@@ -224,7 +224,7 @@ fn random_rich_account(storage: Rc<RefCell<StorageView<InMemoryStorage>>>) -> Ac
     account
 }
 
-fn build_deploy_tx(mut account: Account, code: &[u8], calldata: Option<&[Token]>, mut factory_deps: Vec<Vec<u8>>, tx_type: TxType) -> DeployContractsTx {
+fn build_deploy_tx(sender: &mut Account, code: &[u8], calldata: Option<&[Token]>, mut factory_deps: Vec<Vec<u8>>, tx_type: TxType) -> DeployContractsTx {
     let deployer = serde_json::from_value::<Contract>(serde_json::from_reader::<_, Value>(File::open(format!("{ROOT}/contracts/ContractDeployer.json")).unwrap()).unwrap()["abi"].take()).unwrap();
 
     let contract_function = deployer.function("create").unwrap();
@@ -249,17 +249,28 @@ fn build_deploy_tx(mut account: Account, code: &[u8], calldata: Option<&[Token]>
     };
 
     let tx = match tx_type {
-        TxType::L2 => account.get_l2_tx_for_execute(execute, None),
-        TxType::L1 { serial_id } => account.get_l1_tx(execute, serial_id),
+        TxType::L2 => sender.get_l2_tx_for_execute(execute, None),
+        TxType::L1 { serial_id } => sender.get_l1_tx(execute, serial_id),
     };
 
     // For L1Tx we usually use nonce 0
-    let address = deployed_address_create(account.address, (tx.nonce().unwrap_or(Nonce(0)).0).into());
+    let address = deployed_address_create(sender.address, (tx.nonce().unwrap_or(Nonce(0)).0).into());
     DeployContractsTx {
         tx,
         bytecode_hash: code_hash,
         address,
     }
+}
+
+fn build_call_tx(sender: &mut Account, contract: &Contract, contract_address: &Address, function_name: &str, function_args: &[Token]) -> Transaction {
+    let function = contract.function(function_name).unwrap();
+    let execute = Execute {
+        contract_address: contract_address.clone(),
+        calldata: function.encode_input(function_args).unwrap(),
+        factory_deps: None,
+        value: U256::zero(),
+    };
+    sender.get_l2_tx_for_execute(execute, None)
 }
 
 fn default_vm(storage: Rc<RefCell<StorageView<InMemoryStorage>>>) -> Vm<StorageView<InMemoryStorage>, HistoryEnabled> {
@@ -269,12 +280,51 @@ fn default_vm(storage: Rc<RefCell<StorageView<InMemoryStorage>>>) -> Vm<StorageV
 }
 
 fn main() {
+    env_logger::builder()
+        // .filter_module("reqwest::connect", log::LevelFilter::Off)
+        .filter_level(log::LevelFilter::Debug)
+        .init();
+
     let storage = default_empty_storage(&[]);
-    let contract_bytecode = compiler::compile("test_contracts/counter/src/Counter.sol", "Counter");
-    let sender = random_rich_account(storage.clone());
-    let tx = build_deploy_tx(sender, &contract_bytecode, None, vec![], TxType::L2).tx;
+    let artifact = compiler::compile("test_contracts/counter/src/Counter.sol", "Counter");
+    let mut sender = random_rich_account(storage.clone());
+    
+    // Deploy the contract
+    let deploy_tx = build_deploy_tx(&mut sender, &artifact.bin.unwrap(), None, vec![], TxType::L2);
     let mut vm = default_vm(storage);
-    vm.push_transaction(tx);
-    let result = vm.execute(VmExecutionMode::OneTx);
-    println!("{:?}", result);
+    vm.push_transaction(deploy_tx.tx.clone());
+    let deployment_execution_result = vm.execute(VmExecutionMode::OneTx).result;
+    log::info!("{deployment_execution_result:?}");
+    
+    // Call the contract
+    let contract = artifact.abi.unwrap();
+    let contract_address = deploy_tx.address;
+
+    let function_name = "get";
+    let get_call_tx = build_call_tx(&mut sender, &contract, &contract_address, function_name, &[]);
+    vm.push_transaction(get_call_tx);
+    let get_call_execution_result = vm.execute(VmExecutionMode::OneTx).result;
+    log::info!("{get_call_execution_result:?}");
+
+    let function_name = "increment";
+    let function_args = [Token::Uint(U256::one())];
+    let increment_call_tx = build_call_tx(&mut sender, &contract, &contract_address, function_name, &function_args);
+    vm.push_transaction(increment_call_tx);
+    let increment_call_execution_result = vm.execute(VmExecutionMode::OneTx).result;
+    log::info!("{increment_call_execution_result:?}");
+
+
+    let function_name = "incrementWithRevertPayable";
+    let function_args = [Token::Uint(U256::one()), Token::Bool(true)];
+    let increment_call_tx = build_call_tx(&mut sender, &contract, &contract_address, function_name, &function_args);
+    vm.push_transaction(increment_call_tx);
+    let increment_call_execution_result = vm.execute(VmExecutionMode::OneTx).result;
+    log::info!("{increment_call_execution_result:?}");
+
+    let function_name = "incrementWithRevert";
+    let function_args = [Token::Uint(U256::one()), Token::Bool(true)];
+    let increment_call_tx = build_call_tx(&mut sender, &contract, &contract_address, function_name, &function_args);
+    vm.push_transaction(increment_call_tx);
+    let increment_call_execution_result = vm.execute(VmExecutionMode::OneTx).result;
+    log::info!("{increment_call_execution_result:?}");
 }
