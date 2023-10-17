@@ -3,7 +3,21 @@ name = "zkevm_playground"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[[example]]
+name = "contract_call_batch"
+path = "examples/contract_call_batch.rs"
+
+[[example]]
+name = "contract_call"
+path = "examples/contract_call.rs"
+
+[[example]]
+name = "contract_deploy_batch"
+path = "examples/contract_deploy_batch.rs"
+
+[[example]]
+name = "contract_deploy"
+path = "examples/contract_deploy.rs"
 
 [dependencies]
 zksync_era_vm = { git = "https://github.com/matter-labs/zksync-era.git", package = "vm" }
