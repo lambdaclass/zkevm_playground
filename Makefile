@@ -5,3 +5,5 @@ compiler:
 	&& brew install solidity \
 	&& cp /opt/homebrew/bin/solc src/compiler/bin/solc
 
+example:
+	cargo run --release --example ${EXAMPLE}
